@@ -2,8 +2,9 @@ import { Link, useHistory } from "react-router-dom";
 import { useContext, useState, useEffect } from "react";
 import FirebaseContext from "../contexts/firebase";
 import * as ROUTES from "../constants/Routes";
+import * as SERVICES from "../services/firebase";
 
-function Login() {
+function Signup() {
   //Initialize useHistory hook.
   const history = useHistory();
 
@@ -12,27 +13,61 @@ function Login() {
 
   //Effect to set title of the document.
   useEffect(() => {
-    document.title = "Login - SocialMittens";
+    document.title = "Signup - SocialMittens";
   }, []);
 
   //States.
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [username, setUserName] = useState("");
+  const [fullname, setFullname] = useState("");
   const [error, setError] = useState("");
 
   //check if data provided is empty
   const isInvalid = password === "" || email === "";
 
-  const login = async (event) => {
+  const signup = async (event) => {
     event.preventDefault();
 
-    try {
-      await firebase.auth().signInWithEmailAndPassword(email, password);
-      history.push(ROUTES.DASHBOARD);
-    } catch (error) {
-      setEmail("");
-      setPassword("");
-      setError(error.message);
+    //if user name exists or not
+    const uNameExists = await SERVICES.doesUsernameExist(username);
+    console.log(uNameExists)
+    if (uNameExists.length === 0) {
+      try {
+        //Authentication part
+        const createdUserResult = await firebase
+          .auth()
+          .createUserWithEmailAndPassword(email, password);
+
+        await createdUserResult.user.updateProfile({
+          displayName: username,
+        });
+
+        //Database part
+        await firebase.firestore().collection("users").add({
+          userId: createdUserResult.user.uid,
+          username: username.toLowerCase(),
+          fullname,
+          emailAddress: email.toLowerCase(),
+          following: [],
+          followers: [],
+          dateCreated: Date.now(),
+        });
+
+        //push to dashboard.
+        history.push(ROUTES.DASHBOARD);
+      } catch (error) {
+          setFullname("")
+          setPassword("")
+          setUserName("")
+          setEmail("")
+
+          setError(error.message)
+      }
+    }
+    else {
+        setUserName("")
+        setError("Username is already taken try something else")
     }
   };
 
@@ -53,7 +88,23 @@ function Login() {
         {error && (
           <p className="text-red-primary p-2 text-center text-xs">{error}</p>
         )}
-        <form onSubmit={login} method="POST" className="p-2">
+        <form onSubmit={signup} method="POST" className="p-2">
+          <input
+            aria-label="Enter a username"
+            type="text"
+            placeholder="Username"
+            value={username}
+            className="focus:border-light-blue-500 focus:ring-light-blue-500 text-grey-base border-gray-primary self-center mb-2 mt-2 px-4 py-5 w-full h-2 text-sm border rounded focus:outline-none focus:ring-1"
+            onChange={({ target }) => setUserName(target.value)}
+          />
+          <input
+            aria-label="Enter you full name"
+            type="text"
+            placeholder="Fullname"
+            value={fullname}
+            className="focus:border-light-blue-500 focus:ring-light-blue-500 text-grey-base border-gray-primary self-center mb-2 mt-2 px-4 py-5 w-full h-2 text-sm border rounded focus:outline-none focus:ring-1"
+            onChange={({ target }) => setFullname(target.value)}
+          />
           <input
             aria-label="Enter you Email"
             type="text"
@@ -76,17 +127,17 @@ function Login() {
             className={`bg-blue-medium text-white w-full rounded h-8 font-bold
             ${isInvalid && "opacity-50"}`}
           >
-            login
+            Sign Up
           </button>
         </form>
         <div className="border-gray-primary flex flex-col items-center justify-center mb-2 mt-5 p-4 w-11/12 bg-white">
           <p className="text-sm">
-            Don't have an account?{` `}
+            Already have an account?{` `}
             <Link
-              to={ROUTES.SIGN_UP}
+              to={ROUTES.LOGIN}
               className="text-blue-medium font-bold cursor-pointer"
             >
-              Sign Up
+              Login
             </Link>
           </p>
         </div>
@@ -95,4 +146,4 @@ function Login() {
   );
 }
 
-export default Login;
+export default Signup;
